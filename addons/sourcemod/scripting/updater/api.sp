@@ -1,10 +1,10 @@
 
 /* API - Natives & Forwards */
 
-static Handle fwd_OnPluginChecking = null;
-static Handle fwd_OnPluginDownloading = null;
-static Handle fwd_OnPluginUpdating = null;
-static Handle fwd_OnPluginUpdated = null;
+static PrivateForward fwd_OnPluginChecking = null;
+static PrivateForward fwd_OnPluginDownloading = null;
+static PrivateForward fwd_OnPluginUpdating = null;
+static PrivateForward fwd_OnPluginUpdated = null;
 
 void API_Init()
 {
@@ -12,16 +12,16 @@ void API_Init()
 	CreateNative("Updater_RemovePlugin", Native_RemovePlugin);
 	CreateNative("Updater_ForceUpdate", Native_ForceUpdate);
 	
-	fwd_OnPluginChecking = CreateForward(ET_Event);
-	fwd_OnPluginDownloading = CreateForward(ET_Event);
-	fwd_OnPluginUpdating = CreateForward(ET_Ignore);
-	fwd_OnPluginUpdated = CreateForward(ET_Ignore);
+	fwd_OnPluginChecking = new PrivateForward(ET_Event);
+	fwd_OnPluginDownloading = new PrivateForward(ET_Event);
+	fwd_OnPluginUpdating = new PrivateForward(ET_Ignore);
+	fwd_OnPluginUpdated = new PrivateForward(ET_Ignore);
 }
 
 // native Updater_AddPlugin(const String:url[]);
-public int Native_AddPlugin(Handle plugin, numParams)
+public int Native_AddPlugin(Handle plugin, int numParams)
 {
-	decl String:url[MAX_URL_LENGTH];
+	char url[MAX_URL_LENGTH];
 	GetNativeString(1, url, sizeof(url));
 	
 	Updater_AddPlugin(plugin, url);
@@ -64,11 +64,11 @@ Action Fwd_OnPluginChecking(Handle plugin)
 	Action result = Plugin_Continue;
 	Function func = GetFunctionByName(plugin, "Updater_OnPluginChecking");
 	
-	if (func != INVALID_FUNCTION && AddToForward(fwd_OnPluginChecking, plugin, func))
+	if (func != INVALID_FUNCTION && fwd_OnPluginChecking.AddFunction(plugin, func))
 	{
 		Call_StartForward(fwd_OnPluginChecking);
 		Call_Finish(result);
-		RemoveAllFromForward(fwd_OnPluginChecking, plugin);
+		fwd_OnPluginChecking.RemoveAllFunctions(plugin);
 	}
 	
 	return result;
@@ -80,11 +80,11 @@ Action Fwd_OnPluginDownloading(Handle plugin)
 	Action result = Plugin_Continue;
 	Function func = GetFunctionByName(plugin, "Updater_OnPluginDownloading");
 	
-	if (func != INVALID_FUNCTION && AddToForward(fwd_OnPluginDownloading, plugin, func))
+	if (func != INVALID_FUNCTION && fwd_OnPluginDownloading.AddFunction(plugin, func))
 	{
 		Call_StartForward(fwd_OnPluginDownloading);
 		Call_Finish(result);
-		RemoveAllFromForward(fwd_OnPluginDownloading, plugin);
+		fwd_OnPluginDownloading.RemoveAllFunctions(plugin);
 	}
 	
 	return result;
@@ -95,11 +95,11 @@ void Fwd_OnPluginUpdating(Handle plugin)
 {
 	Function func = GetFunctionByName(plugin, "Updater_OnPluginUpdating");
 	
-	if (func != INVALID_FUNCTION && AddToForward(fwd_OnPluginUpdating, plugin, func))
+	if (func != INVALID_FUNCTION && fwd_OnPluginUpdating.AddFunction(plugin, func))
 	{
 		Call_StartForward(fwd_OnPluginUpdating);
 		Call_Finish();
-		RemoveAllFromForward(fwd_OnPluginUpdating, plugin);
+		fwd_OnPluginUpdating.RemoveAllFunctions(plugin);
 	}
 }
 
@@ -108,10 +108,10 @@ void Fwd_OnPluginUpdated(Handle plugin)
 {
 	Function func = GetFunctionByName(plugin, "Updater_OnPluginUpdated");
 	
-	if (func != INVALID_FUNCTION && AddToForward(fwd_OnPluginUpdated, plugin, func))
+	if (func != INVALID_FUNCTION && fwd_OnPluginUpdating.AddFunction(plugin, func))
 	{
 		Call_StartForward(fwd_OnPluginUpdated);
 		Call_Finish();
-		RemoveAllFromForward(fwd_OnPluginUpdated, plugin);
+		fwd_OnPluginUpdated.RemoveAllFunctions(plugin);
 	}
 }

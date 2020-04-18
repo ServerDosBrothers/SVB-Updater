@@ -106,35 +106,37 @@ void ParseSMCPathForDownload(const char[] path, char[] buffer, int maxlength)
 // Parses a plugin's update file.
 // Logs update notes and begins download if required.
 // Returns true if an update was available.
-static Handle SMC_Sections;
-static Handle SMC_DataTrie;
-static Handle SMC_DataPack;
+static ArrayList SMC_Sections;
+static StringMap SMC_DataTrie;
+static DataPack SMC_DataPack;
 static int SMC_LineNum;
 
 bool ParseUpdateFile(int index, const char[] path)
 {
 	/* Return true if an update was available. */
-	SMC_Sections = CreateArray(64);
-	SMC_DataTrie = CreateTrie();
-	SMC_DataPack = CreateDataPack();
+	SMC_Sections = new ArrayList(64);
+	SMC_DataTrie = new StringMap();
+	SMC_DataPack = new DataPack();
 	SMC_LineNum = 0;
 	
-	Handle smc = SMC_CreateParser();
+	SMCParser smc = new SMCParser();
 	
-	SMC_SetRawLine(smc, Updater_RawLine);
-	SMC_SetReaders(smc, Updater_NewSection, Updater_KeyValue, Updater_EndSection);
+	smc.OnRawLine = Updater_RawLine;
+	smc.OnEnterSection = Updater_NewSection;
+	smc.OnKeyValue = Updater_KeyValue;
+	smc.OnLeaveSection = Updater_EndSection;
 	
 	char sBuffer[MAX_URL_LENGTH];
-	Handle hPack;
+	DataPack hPack;
 	bool bUpdate = false;
-	SMCError err = SMC_ParseFile(smc, path);
+	SMCError err = smc.ParseFile(path);
 	
 	if (err == SMCError_Okay)
 	{
 		// Initialize data
 		Handle hPlugin = IndexToPlugin(index);
-		Handle hFiles = Updater_GetFiles(index);
-		ClearArray(hFiles);
+		ArrayList hFiles = Updater_GetFiles(index);
+		hFiles.Clear();
 		
 		// current version.
 		char sCurrentVersion[16];
@@ -147,10 +149,10 @@ bool ParseUpdateFile(int index, const char[] path)
 		// latest version.
 		char smcLatestVersion[16];
 		
-		if (GetTrieValue(SMC_DataTrie, "version->latest", hPack))
+		if (SMC_DataTrie.GetValue("version->latest", hPack))
 		{
-			ResetPack(hPack);
-			ReadPackString(hPack, smcLatestVersion, sizeof(smcLatestVersion));
+			hPack.Reset();
+			hPack.ReadString(smcLatestVersion, sizeof(smcLatestVersion));
 		}
 		
 		// Check if we have the latest version.
@@ -168,14 +170,14 @@ bool ParseUpdateFile(int index, const char[] path)
 				Updater_Log("Update available for \"%s\". Current: %s - Latest: %s", sFilename, sCurrentVersion, smcLatestVersion);
 			}
 			
-			if (GetTrieValue(SMC_DataTrie, "information->notes", hPack))
+			if (SMC_DataTrie.GetValue("information->notes", hPack))
 			{
-				ResetPack(hPack);
+				hPack.Reset();
 				
 				int iCount = 0;
-				while (IsPackReadable(hPack, 1))
+				while (hPack.IsPackReadable())
 				{
-					ReadPackString(hPack, sBuffer, sizeof(sBuffer));
+					hPack.ReadString(sBuffer, sizeof(sBuffer));
 					Updater_Log("  [%i]  %s", iCount++, sBuffer);
 				}
 			}
@@ -185,27 +187,27 @@ bool ParseUpdateFile(int index, const char[] path)
 			{
 				// Get previous version.
 				char smcPrevVersion[16];
-				if (GetTrieValue(SMC_DataTrie, "version->previous", hPack))
+				if (SMC_DataTrie.GetValue("version->previous", hPack))
 				{
-					ResetPack(hPack);
-					ReadPackString(hPack, smcPrevVersion, sizeof(smcPrevVersion));
+					hPack.Reset();
+					hPack.ReadString(smcPrevVersion, sizeof(smcPrevVersion));
 				}
 				
 				// Check if we only need the patch files.
-				if (StrEqual(sCurrentVersion, smcPrevVersion) && GetTrieValue(SMC_DataTrie, "patch->plugin", hPack))
+				if (StrEqual(sCurrentVersion, smcPrevVersion) && SMC_DataTrie.GetValue("patch->plugin", hPack))
 				{
 					ParseSMCFilePack(index, hPack, hFiles);
 					
-					if (g_bGetSource && GetTrieValue(SMC_DataTrie, "patch->source", hPack))
+					if (g_bGetSource && SMC_DataTrie.GetValue("patch->source", hPack))
 					{
 						ParseSMCFilePack(index, hPack, hFiles);
 					}
 				}
-				else if (GetTrieValue(SMC_DataTrie, "files->plugin", hPack))
+				else if (SMC_DataTrie.GetValue("files->plugin", hPack))
 				{
 					ParseSMCFilePack(index, hPack, hFiles);
 					
-					if (g_bGetSource && GetTrieValue(SMC_DataTrie, "files->source", hPack))
+					if (g_bGetSource && SMC_DataTrie.GetValue("files->source", hPack))
 					{
 						ParseSMCFilePack(index, hPack, hFiles);
 					}
@@ -227,19 +229,19 @@ bool ParseUpdateFile(int index, const char[] path)
 		
 		Updater_DebugLog(" ");
 		Updater_DebugLog("SMC DEBUG");
-		ResetPack(SMC_DataPack);
+		SMC_DataPack.Reset();
 		
-		while (IsPackReadable(SMC_DataPack, 1))
+		while (SMC_DataPack.IsReadable())
 		{
-			ReadPackString(SMC_DataPack, sBuffer, sizeof(sBuffer));
+			SMC_DataPack.ReadString(sBuffer, sizeof(sBuffer));
 			Updater_DebugLog("%s", sBuffer);
 			
-			if (GetTrieValue(SMC_DataTrie, sBuffer, hPack))
+			if (SMC_DataTrie.GetValue(sBuffer, hPack))
 			{
 				iCount = 0;
-				ResetPack(hPack);
+				hPack.Reset();
 				
-				while (IsPackReadable(hPack, 1))
+				while (hPack.IsReadable(hPack))
 				{
 					ReadPackString(hPack, sBuffer, sizeof(sBuffer));
 					Updater_DebugLog("  [%i]  %s", iCount++, sBuffer);
@@ -264,38 +266,38 @@ bool ParseUpdateFile(int index, const char[] path)
 	}
 	
 	// Clean up SMC data.
-	ResetPack(SMC_DataPack);
+	SMC_DataPack.Reset();
 	
-	while (IsPackReadable(SMC_DataPack, 1))
+	while (SMC_DataPack.IsReadable())
 	{
-		ReadPackString(SMC_DataPack, sBuffer, sizeof(sBuffer));
+		SMC_DataPack.ReadString(sBuffer, sizeof(sBuffer));
 		
-		if (GetTrieValue(SMC_DataTrie, sBuffer, hPack))
+		if (SMC_DataTrie.GetValue(sBuffer, hPack))
 		{
-			CloseHandle(hPack);
+			delete hPack;
 		}
 	}
 	
-	CloseHandle(SMC_Sections);
-	CloseHandle(SMC_DataTrie);
-	CloseHandle(SMC_DataPack);
-	CloseHandle(smc);
+	delete SMC_Sections;
+	delete SMC_DataTrie;
+	delete SMC_DataPack;
+	delete smc;
 	
 	return bUpdate;
 }
 
-void ParseSMCFilePack(int index, Handle hPack, Handle hFiles)
+void ParseSMCFilePack(int index, DataPack hPack, ArrayList hFiles)
 {
 	// Prepare URL
 	char urlprefix[MAX_URL_LENGTH], url[MAX_URL_LENGTH], dest[PLATFORM_MAX_PATH], sBuffer[MAX_URL_LENGTH];
 	Updater_GetURL(index, urlprefix, sizeof(urlprefix));
 	StripPathFilename(urlprefix);
 
-	ResetPack(hPack);
+	hPack.Reset();
 
-	while (IsPackReadable(hPack, 1))
+	while (hPack.IsPackReadable())
 	{
-		ReadPackString(hPack, sBuffer, sizeof(sBuffer));
+		hPack.ReadString(sBuffer, sizeof(sBuffer));
 		
 		// Merge url.
 		ParseSMCPathForDownload(sBuffer, url, sizeof(url));
@@ -315,7 +317,7 @@ void ParseSMCFilePack(int index, Handle hPack, Handle hFiles)
 		}
 		
 		// Save the file location for later.
-		PushArrayString(hFiles, dest);
+		hFiles.PushString(dest);
 		
 		// Add temporary file extension.
 		Format(dest, sizeof(dest), "%s.%s", dest, TEMP_FILE_EXT);
@@ -325,43 +327,44 @@ void ParseSMCFilePack(int index, Handle hPack, Handle hFiles)
 	}
 }
 
-public void SMCResult:Updater_RawLine(Handle smc, const char[] line, int lineno)
+public SMCResult Updater_RawLine(SMCParser smc, const char[] line, int lineno)
 {
 	SMC_LineNum = lineno;
 	return SMCParse_Continue;
 }
 
-public SMCResult Updater_NewSection(Handle smc, const char[] name, bool opt_quotes)
+public SMCResult Updater_NewSection(SMCParser smc, const char[] name, bool opt_quotes)
 {
-	PushArrayString(SMC_Sections, name);
+	SMC_Sections.PushString(name);
 	return SMCParse_Continue;
 }
 
-public SMCResult Updater_KeyValue(Handle smc, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
+public SMCResult Updater_KeyValue(SMCParser smc, const char[] key, const char[] value, bool key_quotes, bool value_quotes)
 {
 	char sCurSection[MAX_URL_LENGTH], sKey[MAX_URL_LENGTH];
-	Handle hPack;
+	DataPack hPack;
 	
-	GetArrayString(SMC_Sections, GetArraySize(SMC_Sections)-1, sCurSection, sizeof(sCurSection));
+	SMC_Sections.GetString(SMC_Sections.Length-1, sCurSection, sizeof(sCurSection));
 	FormatEx(sKey, sizeof(sKey), "%s->%s", sCurSection, key);
 	StringToLower(sKey);
 	
-	if (!GetTrieValue(SMC_DataTrie, sKey, hPack))
+	if (!SMC_DataTrie.GetValue(sKey, hPack))
 	{
-		hPack = CreateDataPack();
-		SetTrieValue(SMC_DataTrie, sKey, hPack);
-		WritePackString(SMC_DataPack, sKey);
+		hPack = new DataPack();
+		SMC_DataTrie.SetValue(sKey, hPack);
+		SMC_DataPack.WriteString(sKey);
 	}
 	
-	WritePackString(hPack, value);
+	hPack.WriteString(value);
 	return SMCParse_Continue;
 }
 
-public SMCResult Updater_EndSection(Handle smc)
+public SMCResult Updater_EndSection(SMCParser smc)
 {
-	if (GetArraySize(SMC_Sections))
+	int length = SMC_Sections.Length;
+	if (length)
 	{
-		RemoveFromArray(SMC_Sections, GetArraySize(SMC_Sections)-1);
+		SMC_Sections.Erase(length-1);
 	}
 	
 	return SMCParse_Continue;

@@ -3,10 +3,30 @@
 /* SM Includes */
 #include <sourcemod>
 #undef REQUIRE_EXTENSIONS
-#include <cURL>
-#include <socket>
-#include <steamtools>
-#include <SteamWorks>
+#if !defined __updater_disable_curl
+#tryinclude <cURL>
+#if defined _cURL_included
+#define __updater_curl_enabled
+#endif
+#endif
+#if !defined __updater_disable_socket
+#tryinclude <socket>
+#if defined _socket_included
+#define __updater_socket_enabled
+#endif
+#endif
+#if !defined __updater_disable_steamtools
+#tryinclude <steamtools>
+#if defined _steamtools_included
+#define __updater_steamtools_enabled
+#endif
+#endif
+#if !defined __updater_disable_steamworks
+#tryinclude <SteamWorks>
+#if defined _SteamWorks_Included
+#define __updater_steamworks_enabled
+#endif
+#endif
 #define REQUIRE_EXTENSIONS
 
 #pragma semicolon 1
@@ -28,10 +48,18 @@ public Plugin myinfo =
 /* Globals */
 //#define DEBUG		// This will enable verbose logging. Useful for developers testing their updates.
 
+#if defined __updater_curl_enabled
 #define CURL_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "curl_easy_init") == FeatureStatus_Available)
+#endif
+#if defined __updater_socket_enabled
 #define SOCKET_AVAILABLE()		(GetFeatureStatus(FeatureType_Native, "SocketCreate") == FeatureStatus_Available)
+#endif
+#if defined __updater_steamtools_enabled
 #define STEAMTOOLS_AVAILABLE()	(GetFeatureStatus(FeatureType_Native, "Steam_CreateHTTPRequest") == FeatureStatus_Available)
+#endif
+#if defined __updater_steamworks_enabled
 #define STEAMWORKS_AVAILABLE()	(GetFeatureStatus(FeatureType_Native, "SteamWorks_WriteHTTPResponseBodyToFile") == FeatureStatus_Available)
+#endif
 
 #define EXTENSION_ERROR		"This plugin requires one of the cURL, Socket, SteamTools, or SteamWorks extensions to function."
 #define TEMP_FILE_EXT		"temp"		// All files are downloaded with this extension first.
@@ -49,9 +77,9 @@ enum UpdateStatus {
 
 bool g_bGetDownload, g_bGetSource;
 
-Handle g_hPluginPacks = null;
-Handle g_hDownloadQueue = null;
-Handle g_hRemoveQueue = null;
+ArrayList g_hPluginPacks = null;
+ArrayList g_hDownloadQueue = null;
+ArrayList g_hRemoveQueue = null;
 bool g_bDownloading = false;
 
 static Handle _hUpdateTimer = null;
@@ -67,6 +95,7 @@ static char _sDataPath[PLATFORM_MAX_PATH];
 /* Plugin Functions */
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
+#if defined __updater_curl_enabled
 	// cURL
 	MarkNativeAsOptional("curl_OpenFile");
 	MarkNativeAsOptional("curl_slist");
@@ -77,20 +106,25 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	MarkNativeAsOptional("curl_easy_setopt_string");
 	MarkNativeAsOptional("curl_easy_perform_thread");
 	MarkNativeAsOptional("curl_easy_strerror");
+#endif
 	
+#if defined __updater_socket_enabled
 	// Socket
 	MarkNativeAsOptional("SocketCreate");
 	MarkNativeAsOptional("SocketSetArg");
 	MarkNativeAsOptional("SocketSetOption");
 	MarkNativeAsOptional("SocketConnect");
 	MarkNativeAsOptional("SocketSend");
+#endif
 	
+#if defined __updater_steamtools_enabled
 	// SteamTools
 	MarkNativeAsOptional("Steam_CreateHTTPRequest");
 	MarkNativeAsOptional("Steam_SetHTTPRequestHeaderValue");
 	MarkNativeAsOptional("Steam_SendHTTPRequest");
 	MarkNativeAsOptional("Steam_WriteHTTPResponseBody");
 	MarkNativeAsOptional("Steam_ReleaseHTTPRequest");
+#endif
 	
 	API_Init();
 	RegPluginLibrary("updater");
@@ -100,8 +134,33 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
-	if (!CURL_AVAILABLE() && !SOCKET_AVAILABLE() && !STEAMTOOLS_AVAILABLE() && !STEAMWORKS_AVAILABLE())
-	{
+	bool any_available = false;
+
+	#if defined __updater_curl_enabled
+	if(CURL_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	#if defined __updater_socket_enabled
+	if(SOCKET_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	#if defined __updater_steamtools_enabled
+	if(STEAMTOOLS_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	#if defined __updater_steamworks_enabled
+	if(STEAMWORKS_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	if(!any_available) {
 		SetFailState(EXTENSION_ERROR);
 	}
 	
@@ -112,20 +171,20 @@ public void OnPluginStart()
 	
 	hCvar = CreateConVar("sm_updater_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	OnVersionChanged(hCvar, "", "");
-	HookConVarChange(hCvar, OnVersionChanged);
+	hCvar.AddChangeHook(OnVersionChanged);
 	
 	hCvar = CreateConVar("sm_updater", "2", "Determines update functionality. (1 = Notify, 2 = Download, 3 = Include source code)", 0, true, 1.0, true, 3.0);
 	OnSettingsChanged(hCvar, "", "");
-	HookConVarChange(hCvar, OnSettingsChanged);
+	hCvar.AddChangeHook(OnSettingsChanged);
 	
 	// Commands.
 	RegAdminCmd("sm_updater_check", Command_Check, ADMFLAG_RCON, "Forces Updater to check for updates.");
 	RegAdminCmd("sm_updater_status", Command_Status, ADMFLAG_RCON, "View the status of Updater.");
 	
 	// Initialize arrays.
-	g_hPluginPacks = CreateArray();
-	g_hDownloadQueue = CreateArray();
-	g_hRemoveQueue = CreateArray();
+	g_hPluginPacks = new ArrayList();
+	g_hDownloadQueue = new ArrayList();
+	g_hRemoveQueue = new ArrayList();
 	
 	// Temp path for checking update files.
 	BuildPath(Path_SM, _sDataPath, sizeof(_sDataPath), "data/updater.txt");
@@ -265,17 +324,17 @@ void Updater_Check(int index)
 void Updater_FreeMemory()
 {
 	// Make sure that no threads are active.
-	if (g_bDownloading || GetArraySize(g_hDownloadQueue))
+	if (g_bDownloading || g_hDownloadQueue.Length)
 	{
 		return;
 	}
 	
 	// Remove all queued plugins.	
 	int index;
-	int maxPlugins = GetArraySize(g_hRemoveQueue);
+	int maxPlugins = g_hRemoveQueue.Length;
 	for (int i = 0; i < maxPlugins; i++)
 	{
-		index = PluginToIndex(GetArrayCell(g_hRemoveQueue, i));
+		index = PluginToIndex(g_hRemoveQueue.Get(i));
 		
 		if (index != -1)
 		{
@@ -283,10 +342,11 @@ void Updater_FreeMemory()
 		}
 	}
 	
-	ClearArray(g_hRemoveQueue);
+	g_hRemoveQueue.Clear();
 	
 	// Remove plugins that have been unloaded.
-	for (int i = 0; i < GetMaxPlugins(); i++)
+	maxPlugins = GetMaxPlugins();
+	for (int i = 0; i < maxPlugins; i++)
 	{
 		if (!IsValidPlugin(IndexToPlugin(i)))
 		{
@@ -296,7 +356,7 @@ void Updater_FreeMemory()
 	}
 }
 
-void Updater_Log(const char[] format[], any ...)
+void Updater_Log(const char[] format, any ...)
 {
 	char buffer[256], path[PLATFORM_MAX_PATH];
 	VFormat(buffer, sizeof(buffer), format, 2);

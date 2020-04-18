@@ -1,23 +1,31 @@
 
 /* Download Manager */
 
+#if defined __updater_curl_enabled
 #include "updater/download_curl.sp"
+#endif
+#if defined __updater_socket_enabled
 #include "updater/download_socket.sp"
+#endif
+#if defined __updater_steamtools_enabled
 #include "updater/download_steamtools.sp"
+#endif
+#if defined __updater_steamworks_enabled
 #include "updater/download_steamworks.sp"
+#endif
 
-static int QueuePack_URL = 0;
+static DataPackPos QueuePack_URL = view_as<DataPackPos>(0);
 
 void FinalizeDownload(int index)
 {
 	/* Strip the temporary file extension from downloaded files. */
 	char newpath[PLATFORM_MAX_PATH], oldpath[PLATFORM_MAX_PATH];
-	Handle hFiles = Updater_GetFiles(index);
+	ArrayList hFiles = Updater_GetFiles(index);
 	
-	int maxFiles = GetArraySize(hFiles);
+	int maxFiles = hFiles.Length;
 	for (int i = 0; i < maxFiles; i++)
 	{
-		GetArrayString(hFiles, i, newpath, sizeof(newpath));
+		hFiles.GetString(i, newpath, sizeof(newpath));
 		Format(oldpath, sizeof(oldpath), "%s.%s", newpath, TEMP_FILE_EXT);
 		
 		// Rename doesn't overwrite on Windows. Make sure the path is clear.
@@ -29,19 +37,19 @@ void FinalizeDownload(int index)
 		RenameFile(newpath, oldpath);
 	}
 	
-	ClearArray(hFiles);
+	hFiles.Clear();
 }
 
 void AbortDownload(int index)
 {
 	/* Delete all downloaded temporary files. */
 	char path[PLATFORM_MAX_PATH];
-	Handle hFiles = Updater_GetFiles(index);
+	ArrayList hFiles = Updater_GetFiles(index);
 	
-	int maxFiles = GetArraySize(hFiles);
+	int maxFiles = hFiles.Length;
 	for (int i = 0; i < maxFiles; i++)
 	{
-		GetArrayString(hFiles, 0, path, sizeof(path));
+		hFiles.GetString(0, path, sizeof(path));
 		Format(path, sizeof(path), "%s.%s", path, TEMP_FILE_EXT);
 		
 		if (FileExists(path))
@@ -50,25 +58,50 @@ void AbortDownload(int index)
 		}
 	}
 	
-	ClearArray(hFiles);
+	hFiles.Clear();
 }
 
 void ProcessDownloadQueue(bool force=false)
 {
-	if (!force && (g_bDownloading || !GetArraySize(g_hDownloadQueue)))
+	if (!force && (g_bDownloading || !g_hDownloadQueue.Length))
 	{
 		return;
 	}
 	
-	Handle hQueuePack = GetArrayCell(g_hDownloadQueue, 0);
-	SetPackPosition(hQueuePack, QueuePack_URL);
+	DataPack hQueuePack = g_hDownloadQueue.Get(0);
+	hQueuePack.Position = QueuePack_URL;
 	
 	char url[MAX_URL_LENGTH], dest[PLATFORM_MAX_PATH];
-	ReadPackString(hQueuePack, url, sizeof(url));
-	ReadPackString(hQueuePack, dest, sizeof(dest));
+	hQueuePack.ReadString(url, sizeof(url));
+	hQueuePack.ReadString(dest, sizeof(dest));
 	
-	if (!CURL_AVAILABLE() && !SOCKET_AVAILABLE() && !STEAMTOOLS_AVAILABLE() && !STEAMWORKS_AVAILABLE())
-	{
+	bool any_available = false;
+
+	#if defined __updater_curl_enabled
+	if(CURL_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	#if defined __updater_socket_enabled
+	if(SOCKET_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	#if defined __updater_steamtools_enabled
+	if(STEAMTOOLS_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	#if defined __updater_steamworks_enabled
+	if(STEAMWORKS_AVAILABLE()) {
+		any_available = true;
+	}
+	#endif
+	
+	if(!any_available) {
 		SetFailState(EXTENSION_ERROR);
 	}
 	
@@ -80,6 +113,7 @@ void ProcessDownloadQueue(bool force=false)
 	
 	g_bDownloading = true;
 	
+	#if defined __updater_steamworks_enabled
 	if (STEAMWORKS_AVAILABLE())
 	{
 		if (SteamWorks_IsLoaded())
@@ -90,8 +124,11 @@ void ProcessDownloadQueue(bool force=false)
 		{
 			CreateTimer(10.0, Timer_RetryQueue);
 		}
+		return;
 	}
-	else if (STEAMTOOLS_AVAILABLE())
+	#endif
+	#if defined __updater_steamtools_enabled
+	if (STEAMTOOLS_AVAILABLE())
 	{
 		if (g_bSteamLoaded)
 		{
@@ -101,15 +138,21 @@ void ProcessDownloadQueue(bool force=false)
 		{
 			CreateTimer(10.0, Timer_RetryQueue);
 		}
+		return;
 	}
-	else if (CURL_AVAILABLE())
+	#endif
+	#if defined __updater_curl_enabled
+	if (CURL_AVAILABLE())
 	{
 		Download_cURL(url, dest);
 	}
-	else if (SOCKET_AVAILABLE())
+	#endif
+	#if defined __updater_socket_enabled
+	if (SOCKET_AVAILABLE())
 	{
 		Download_Socket(url, dest);
 	}
+	#endif
 }
 
 public Action Timer_RetryQueue(Handle timer)
@@ -121,31 +164,31 @@ public Action Timer_RetryQueue(Handle timer)
 
 void AddToDownloadQueue(int index, const char[] url, const char[] dest)
 {
-	Handle hQueuePack = CreateDataPack();
-	WritePackCell(hQueuePack, index);
+	DataPack hQueuePack = new DataPack();
+	hQueuePack.WriteCell(index);
 	
-	QueuePack_URL = GetPackPosition(hQueuePack);
-	WritePackString(hQueuePack, url);
-	WritePackString(hQueuePack, dest);
+	QueuePack_URL = hQueuePack.Position;
+	hQueuePack.WriteString(url);
+	hQueuePack.WriteString(dest);
 	
-	PushArrayCell(g_hDownloadQueue, hQueuePack);
+	g_hDownloadQueue.Push(hQueuePack);
 	
 	ProcessDownloadQueue();
 }
 
 void DownloadEnded(bool successful, const char[] error="")
 {
-	Handle hQueuePack = GetArrayCell(g_hDownloadQueue, 0);
-	ResetPack(hQueuePack);
+	DataPack hQueuePack = g_hDownloadQueue.Get(0);
+	hQueuePack.ResetPack();
 	
 	char url[MAX_URL_LENGTH], dest[PLATFORM_MAX_PATH];
-	int index = ReadPackCell(hQueuePack);
-	ReadPackString(hQueuePack, url, sizeof(url));
-	ReadPackString(hQueuePack, dest, sizeof(dest));
+	int index = hQueuePack.ReadCell();
+	hQueuePack.ReadString(url, sizeof(url));
+	hQueuePack.ReadString(dest, sizeof(dest));
 	
 	// Remove from the queue.
-	CloseHandle(hQueuePack);
-	RemoveFromArray(g_hDownloadQueue, 0);
+	delete hQueuePack;
+	g_hDownloadQueue.Remove(0);
 	
 #if defined DEBUG
 	Updater_DebugLog("  [2]  Successful: %s", successful ? "Yes" : "No");
@@ -174,9 +217,9 @@ void DownloadEnded(bool successful, const char[] error="")
 			{
 				// Check if this was the last file we needed.
 				char lastfile[PLATFORM_MAX_PATH];
-				Handle hFiles = Updater_GetFiles(index);
+				ArrayList hFiles = Updater_GetFiles(index);
 				
-				GetArrayString(hFiles, GetArraySize(hFiles) - 1, lastfile, sizeof(lastfile));
+				hFiles.GetString(hFiles.Length - 1, lastfile, sizeof(lastfile));
 				Format(lastfile, sizeof(lastfile), "%s.%s", lastfile, TEMP_FILE_EXT);
 				
 				if (StrEqual(dest, lastfile))
