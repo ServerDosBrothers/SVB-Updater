@@ -79,7 +79,7 @@ void Updater_AddPlugin(Handle plugin, const char[] url)
 	else
 	{
 		DataPack hPluginPack = new DataPack();
-		Handle hFiles = CreateArray(PLATFORM_MAX_PATH);
+		ArrayList hFiles = new ArrayList(PLATFORM_MAX_PATH);
 		
 		PluginPack_Plugin = hPluginPack.Position;
 		hPluginPack.WriteCell(plugin);

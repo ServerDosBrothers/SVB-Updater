@@ -43,6 +43,8 @@ forward Action Updater_OnPluginChecking();
  */
 forward Action Updater_OnPluginDownloading();
 
+forward Action Updater_CanPluginReload();
+
 /**
  * Called when your plugin's update files have been fully downloaded 
  * and are about to write to their proper location. This should be used 

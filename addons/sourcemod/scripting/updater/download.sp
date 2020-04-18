@@ -239,6 +239,14 @@ void DownloadEnded(bool successful, const char[] error="")
 					
 					Updater_SetStatus(index, Status_Updated);
 					Fwd_OnPluginUpdated(hPlugin);
+					
+					if(g_cvAutoreload.BoolValue) {
+						if(Fwd_CanPluginReload(hPlugin) == Plugin_Continue) {
+							ReloadPlugin(hPlugin);
+						} else {
+							//CreateTimer(g_cvAutoreloadInterval.FloatValue, Timer_ReloadPlugin, hPlugin);
+						}
+					}
 				}
 			}
 			else

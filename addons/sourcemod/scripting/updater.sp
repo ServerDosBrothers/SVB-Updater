@@ -38,7 +38,7 @@
 
 /* Plugin Info */
 #define PLUGIN_NAME 		"SVB-Updater"
-#define PLUGIN_VERSION 		"$$GIT_COMMIT$$"
+#define PLUGIN_VERSION 		""
 
 public Plugin myinfo =
 {
@@ -46,7 +46,7 @@ public Plugin myinfo =
 	author = "GoD-Tony/Arthurdead",
 	description = "Automatically updates SourceMod plugins and files",
 	version = PLUGIN_VERSION,
-	url = "http://forums.alliedmods.net/showthread.php?t=169095"
+	url = ""
 };
 
 /* Globals */
@@ -69,7 +69,7 @@ public Plugin myinfo =
 #define TEMP_FILE_EXT		"temp"		// All files are downloaded with this extension first.
 #define MAX_URL_LENGTH		256
 
-#define UPDATE_URL			"http://godtony.mooo.com/updater/updater.txt"
+#define UPDATE_URL			""
 
 enum UpdateStatus {
 	Status_Idle,		
@@ -80,6 +80,9 @@ enum UpdateStatus {
 };
 
 bool g_bGetDownload, g_bGetSource;
+
+ConVar g_cvAutoreload;
+ConVar g_cvAutoreloadInterval;
 
 ArrayList g_hPluginPacks = null;
 ArrayList g_hDownloadQueue = null;
@@ -180,6 +183,9 @@ public void OnPluginStart()
 	hCvar = CreateConVar("sm_updater", "2", "Determines update functionality. (1 = Notify, 2 = Download, 3 = Include source code)", 0, true, 1.0, true, 3.0);
 	OnSettingsChanged(hCvar, "", "");
 	hCvar.AddChangeHook(OnSettingsChanged);
+	
+	g_cvAutoreload = CreateConVar("sm_updater_autereload", "1", "", 0, true, 0.0, true, 1.0);
+	//g_cvAutoreloadInterval = CreateConVar("sm_updater_autereload_timer", "2", "", 0, true, 0.0, false);
 	
 	// Commands.
 	RegAdminCmd("sm_updater_check", Command_Check, ADMFLAG_RCON, "Forces Updater to check for updates.");
@@ -308,9 +314,7 @@ public void Updater_OnPluginUpdated()
 	Updater_Log("Reloading Updater plugin... updates will resume automatically.");
 	
 	// Reload this plugin.
-	char filename[64];
-	GetPluginFilename(null, filename, sizeof(filename));
-	ServerCommand("sm plugins reload %s", filename);
+	ReloadPlugin();
 }
 #endif
 

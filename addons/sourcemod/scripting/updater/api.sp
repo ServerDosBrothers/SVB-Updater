@@ -5,6 +5,7 @@ static PrivateForward fwd_OnPluginChecking = null;
 static PrivateForward fwd_OnPluginDownloading = null;
 static PrivateForward fwd_OnPluginUpdating = null;
 static PrivateForward fwd_OnPluginUpdated = null;
+static PrivateForward fwd_CanPluginReload = null;
 
 void API_Init()
 {
@@ -16,6 +17,7 @@ void API_Init()
 	fwd_OnPluginDownloading = new PrivateForward(ET_Event);
 	fwd_OnPluginUpdating = new PrivateForward(ET_Ignore);
 	fwd_OnPluginUpdated = new PrivateForward(ET_Ignore);
+	fwd_CanPluginReload = new PrivateForward(ET_Event);
 }
 
 // native Updater_AddPlugin(const String:url[]);
@@ -114,4 +116,19 @@ void Fwd_OnPluginUpdated(Handle plugin)
 		Call_Finish();
 		fwd_OnPluginUpdated.RemoveAllFunctions(plugin);
 	}
+}
+
+Action Fwd_CanPluginReload(Handle plugin)
+{
+	Action result = Plugin_Continue;
+	Function func = GetFunctionByName(plugin, "Updater_CanPluginReload");
+	
+	if (func != INVALID_FUNCTION && fwd_CanPluginReload.AddFunction(plugin, func))
+	{
+		Call_StartForward(fwd_CanPluginReload);
+		Call_Finish(result);
+		fwd_CanPluginReload.RemoveAllFunctions(plugin);
+	}
+	
+	return result;
 }
