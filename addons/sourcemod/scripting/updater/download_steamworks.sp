@@ -6,8 +6,8 @@ void Download_SteamWorks(const char[] url, const char[] dest)
 	char sURL[MAX_URL_LENGTH];
 	PrefixURL(sURL, sizeof(sURL), url);
 	
-	Handle hDLPack = CreateDataPack();
-	WritePackString(hDLPack, dest);
+	DataPack hDLPack = new DataPack();
+	hDLPack.WriteString(dest);
 
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodGET, sURL);
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Pragma", "no-cache");
@@ -17,12 +17,12 @@ void Download_SteamWorks(const char[] url, const char[] dest)
 	SteamWorks_SendHTTPRequest(hRequest);
 }
 
-public void OnSteamWorksHTTPComplete(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any hDLPack)
+public void OnSteamWorksHTTPComplete(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, DataPack hDLPack)
 {
 	char sDest[PLATFORM_MAX_PATH];
-	ResetPack(hDLPack);
-	ReadPackString(hDLPack, sDest, sizeof(sDest));
-	CloseHandle(hDLPack);
+	hDLPack.Reset();
+	hDLPack.ReadString(sDest, sizeof(sDest));
+	delete hDLPack;
 	
 	if (bRequestSuccessful && eStatusCode == k_EHTTPStatusCode200OK)
 	{
@@ -32,9 +32,9 @@ public void OnSteamWorksHTTPComplete(Handle hRequest, bool bFailure, bool bReque
 	else
 	{
 		char sError[256];
-		FormatEx(sError, sizeof(sError), "SteamWorks error (status code %i). Request successful: %s", _:eStatusCode, bRequestSuccessful ? "True" : "False");
+		FormatEx(sError, sizeof(sError), "SteamWorks error (status code %i). Request successful: %s", eStatusCode, bRequestSuccessful ? "True" : "False");
 		DownloadEnded(false, sError);
 	}
 	
-	CloseHandle(hRequest);
+	delete hRequest;
 }

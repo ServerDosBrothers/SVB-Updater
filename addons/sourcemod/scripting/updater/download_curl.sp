@@ -28,9 +28,9 @@ void Download_cURL(const char[] url, const char[] dest)
 	curl_slist_append(headers, "Pragma: no-cache");
 	curl_slist_append(headers, "Cache-Control: no-cache");
 	
-	Handle hDLPack = CreateDataPack();
-	WritePackCell(hDLPack, _:hFile);
-	WritePackCell(hDLPack, _:headers);
+	DataPack hDLPack = new DataPack();
+	hDLPack.WriteCell(hFile);
+	hDLPack.WriteCell(headers);
 	
 	Handle curl = curl_easy_init();
 	curl_easy_setopt_int_array(curl, CURL_Default_opt, sizeof(CURL_Default_opt));
@@ -40,13 +40,15 @@ void Download_cURL(const char[] url, const char[] dest)
 	curl_easy_perform_thread(curl, OnCurlComplete, hDLPack);
 }
 
-public void OnCurlComplete(Handle curl, CURLcode code, any hDLPack)
+public void OnCurlComplete(Handle curl, CURLcode code, DataPack hDLPack)
 {
-	ResetPack(hDLPack);
-	CloseHandle(Handle:ReadPackCell(hDLPack));	// hFile
-	CloseHandle(Handle:ReadPackCell(hDLPack));	// headers
-	CloseHandle(hDLPack);
-	CloseHandle(curl);
+	hDLPack.Reset();
+	Handle hFile = hDLPack.ReadCell();
+	delete hFile;	// hFile
+	Handle headers = hDLPack.ReadCell();
+	delete headers;	// headers
+	delete hDLPack;
+	delete curl;
 	
 	if(code == CURLE_OK)
 	{

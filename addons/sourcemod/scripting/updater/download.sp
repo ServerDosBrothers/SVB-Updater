@@ -179,7 +179,7 @@ void AddToDownloadQueue(int index, const char[] url, const char[] dest)
 void DownloadEnded(bool successful, const char[] error="")
 {
 	DataPack hQueuePack = g_hDownloadQueue.Get(0);
-	hQueuePack.ResetPack();
+	hQueuePack.Reset();
 	
 	char url[MAX_URL_LENGTH], dest[PLATFORM_MAX_PATH];
 	int index = hQueuePack.ReadCell();
@@ -188,7 +188,7 @@ void DownloadEnded(bool successful, const char[] error="")
 	
 	// Remove from the queue.
 	delete hQueuePack;
-	g_hDownloadQueue.Remove(0);
+	g_hDownloadQueue.Erase(0);
 	
 #if defined DEBUG
 	Updater_DebugLog("  [2]  Successful: %s", successful ? "Yes" : "No");

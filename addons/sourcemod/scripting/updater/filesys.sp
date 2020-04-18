@@ -175,7 +175,7 @@ bool ParseUpdateFile(int index, const char[] path)
 				hPack.Reset();
 				
 				int iCount = 0;
-				while (hPack.IsPackReadable())
+				while (hPack.IsReadable())
 				{
 					hPack.ReadString(sBuffer, sizeof(sBuffer));
 					Updater_Log("  [%i]  %s", iCount++, sBuffer);
@@ -295,7 +295,7 @@ void ParseSMCFilePack(int index, DataPack hPack, ArrayList hFiles)
 
 	hPack.Reset();
 
-	while (hPack.IsPackReadable())
+	while (hPack.IsReadable())
 	{
 		hPack.ReadString(sBuffer, sizeof(sBuffer));
 		

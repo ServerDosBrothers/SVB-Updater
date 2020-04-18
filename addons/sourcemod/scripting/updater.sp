@@ -22,12 +22,16 @@
 #endif
 #endif
 #if !defined __updater_disable_steamworks
-#tryinclude <SteamWorks>
+#include <SteamWorks>
 #if defined _SteamWorks_Included
 #define __updater_steamworks_enabled
 #endif
 #endif
 #define REQUIRE_EXTENSIONS
+
+#if !defined __updater_curl_enabled && !defined __updater_socket_enabled && !defined __updater_steamtools_enabled && !defined __updater_steamworks_enabled
+#error
+#endif
 
 #pragma semicolon 1
 #pragma newdecls required

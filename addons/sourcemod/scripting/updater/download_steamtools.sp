@@ -6,8 +6,8 @@ void Download_SteamTools(const char[] url, const char[] dest)
 	char sURL[MAX_URL_LENGTH];
 	PrefixURL(sURL, sizeof(sURL), url);
 	
-	Handle hDLPack = CreateDataPack();
-	WritePackString(hDLPack, dest);
+	DataPack hDLPack = new DataPack();
+	hDLPack.WriteString(dest);
 
 	HTTPRequestHandle hRequest = Steam_CreateHTTPRequest(HTTPMethod_GET, sURL);
 	Steam_SetHTTPRequestHeaderValue(hRequest, "Pragma", "no-cache");
@@ -15,12 +15,12 @@ void Download_SteamTools(const char[] url, const char[] dest)
 	Steam_SendHTTPRequest(hRequest, OnSteamHTTPComplete, hDLPack);
 }
 
-public void OnSteamHTTPComplete(HTTPRequestHandle HTTPRequest, bool requestSuccessful, HTTPStatusCode statusCode, any hDLPack)
+public void OnSteamHTTPComplete(HTTPRequestHandle HTTPRequest, bool requestSuccessful, HTTPStatusCode statusCode, DataPack hDLPack)
 {
 	char sDest[PLATFORM_MAX_PATH];
-	ResetPack(hDLPack);
-	ReadPackString(hDLPack, sDest, sizeof(sDest));
-	CloseHandle(hDLPack);
+	hDLPack.Reset();
+	hDLPack.ReadString(sDest, sizeof(sDest));
+	delete hDLPack;
 	
 	if (requestSuccessful && statusCode == HTTPStatusCode_OK)
 	{
