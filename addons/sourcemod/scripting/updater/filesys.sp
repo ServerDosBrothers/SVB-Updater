@@ -241,7 +241,7 @@ bool ParseUpdateFile(int index, const char[] path)
 				iCount = 0;
 				hPack.Reset();
 				
-				while (hPack.IsReadable(hPack))
+				while (hPack.IsReadable())
 				{
 					ReadPackString(hPack, sBuffer, sizeof(sBuffer));
 					Updater_DebugLog("  [%i]  %s", iCount++, sBuffer);
